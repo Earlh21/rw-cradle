@@ -14,8 +14,7 @@ class HollowDomainSpell(Spell):
 
     def on_init(self):
         self.name = "Hollow Domain"
-        self.level = 1
-        #3
+        self.level = 3
         self.tags = [Tags.Pure, Tags.Enchantment]
 
         self.asset = ["Cradle", "assets", "spells", "hollow_domain"]
@@ -40,7 +39,6 @@ class HollowDomainSpell(Spell):
         return [p for stage in Burst(self.caster.level, Point(x, y), self.get_stat('radius')) for p in stage]
 
     def cast(self, x, y):
-        self.caster.xp += 10
         tiles = self.get_impacted_tiles(x, y)
 
         for i, point in enumerate(tiles):

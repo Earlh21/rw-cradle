@@ -303,7 +303,6 @@ class SevenStarsSpell(Spell):
         return [p for stage in Burst(self.caster.level, Point(x, y), self.get_stat('radius')) for p in stage]
 
     def cast_instant(self, x, y):
-        self.caster.xp += 1
         buff = SevenStarsBuff(Point(x, y), self)
         self.caster.apply_buff(buff, self.get_stat("duration"))
 
@@ -354,7 +353,6 @@ class KingsMantleSpell(Spell):
                 "unless the spell deals physical damage.").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
-        self.caster.xp += 1
         buff = KingsMantle()
         self.caster.apply_buff(buff, self.get_stat("duration"))
 
