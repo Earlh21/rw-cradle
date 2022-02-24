@@ -1,3 +1,5 @@
+# Release version: 1.0
+
 from Level import Tags, Color, Tag
 
 import mods.API_Universal.APIs.API_Spells.API_Spells as APISpells
