@@ -68,8 +68,8 @@ class FrozenMana(Upgrade):
 
         self.asset = ["Cradle", "assets", "skills", "frozen_mana"]
 
-        self.damage = 5
-        self.duration = 6
+        self.damage = 6
+        self.duration = 7
 
         self.owner_triggers[EventOnSpellCast] = self.on_spell_cast
         self.global_triggers[EventOnDamaged] = self.on_damage

@@ -20,7 +20,7 @@ def pure_unaffected(spell):
 def deny_cooldowns(unit):
     for spell in unit.spells:
         if pure_unaffected(spell):
-            return
+            continue
 
         current_cooldown = unit.cool_downs.get(spell, 0)
         unit.cool_downs[spell] = max(2, current_cooldown)
