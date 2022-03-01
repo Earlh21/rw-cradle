@@ -48,6 +48,9 @@ class PureCloud(Cloud):
 
         if unit == self.owner:
             return
+        
+        if unit.has_buff(PureBuff):
+            return
 
         if self.healing > 0 and not are_hostile(unit, self.owner):
             unit.deal_damage(-self.healing, Tags.Heal, self)

@@ -1,11 +1,14 @@
 from Spells import InfernoCloud, Spell, all_player_spell_constructors
-from Level import Tags, Burst, Point, Buff, are_hostile, EventOnDamaged
+from Level import Tags, Burst, Point, Buff, are_hostile, EventOnDamaged, Unit
 from CommonContent import BlizzardCloud, FireCloud, Poison, SimpleMeleeAttack, StormCloud, apply_minion_bonuses
-from Monsters import Ghost
+from Monsters import Bloodghast, Ghost, GhostFire, GhostKing, GhostMass
+import random
+import math
 
 from Level import BUFF_TYPE_BLESS, STACK_NONE
 
 from mods.Cradle.Pure import PureCloud, PureBuff, pure_desc, mana_cloud_desc
+from mods.Cradle.Util import get_perp_point_slope
 
 class HollowDomainSpell(Spell):
     def __init__(self):
@@ -208,7 +211,240 @@ class EmptyPalmSpell(Spell):
                 unit.apply_buff(PureBuff(), self.get_stat("duration"))
             
             self.caster.level.deal_damage(tile.x, tile.y, self.get_stat("damage"), Tags.Pure, self)
+
+class WordOfEmptiness(Spell):
+    def on_init(self):
+        self.name = "Word of Emptiness"
+        self.level = 1
+        self.tags = [Tags.Pure, Tags.Sorcery]
+
+        self.max_charges = 1
+        self.duration = 5
+        self.radius = 3
+        self.range = 0
+
+        self.upgrades['duration'] = (5, 2)
+        self.upgrades['max_charges'] = (1, 3)
+        self.upgrades['radius'] = (1, 2)
+
+    def get_description(self):
+        return ("Apply [purified] to all enemies for [{duration}_turns:duration].\n"
+                "Spawn mana clouds in a [{radius}_tile:radius] burst at each enemy.\n"
+                "Mana clouds last [4_turns:duration].\n"
+                + mana_cloud_desc).format(**self.fmt_dict())
+    
+    def get_impacted_tiles(self, x, y):
+        tiles = set()
+        for unit in self.caster.level.units:
+            if not are_hostile(self.caster, unit):
+                continue
+
+            for stage in Burst(self.caster.level, Point(unit.x, unit.y), self.get_stat("radius")):
+                for p in stage:
+                    tiles.add(p)
+        
+        return list(tiles)
+
+    def cast(self, x, y):
+        self.caster.xp += 100
+        for unit in self.caster.level.units:
+            if not are_hostile(self.caster, unit):
+                continue
+
+            unit.apply_buff(PureBuff(), self.get_stat("duration"))
             
+            for stage in Burst(self.caster.level, Point(unit.x, unit.y), self.get_stat("radius")):
+                for point in stage:
+                    tile = self.caster.level.tiles[point.x][point.y]
+                    if tile.cloud is not None:
+                        tile.cloud.kill()
+                    cloud = PureCloud(self.caster, 4, 0)
+                    self.caster.level.add_obj(cloud, point.x, point.y)
+            yield
+
+class Shred(Spell):
+    def on_init(self):
+        self.name = "Shred"
+        self.description = "Desc"
+    
+    def spawn_clouds(self):
+        clouds_left = self.get_stat("cloud_count")
+        for stage in Burst(self.caster.level, Point(self.caster.x, self.caster.y), self.caster.level.width):
+            for point in stage:
+                if point.x == self.caster.x and point.y == self.caster.y:
+                    continue
+
+                tile = self.caster.level.tiles[point.x][point.y]
+                if tile.cloud is not None:
+                    if isinstance(tile.cloud, PureCloud):
+                        continue
+                    tile.cloud.kill()
+                
+                cloud = PureCloud(self.caster.source.caster, self.get_stat("duration"), 0)
+                self.caster.level.add_obj(cloud, point.x, point.y)
+                clouds_left -= 1
+
+                if clouds_left < 1:
+                    return
+
+    def cast(self, x, y):
+        for stage in Burst(self.caster.level, Point(self.caster.x, self.caster.y), self.get_stat("radius")):
+            for point in stage:
+                unit = self.caster.level.get_unit_at(point.x, point.y)
+                if unit is None:
+                    continue
+
+                if not are_hostile(self.caster, unit):
+                    continue
+
+                unit.deal_damage(self.get_stat("damage"), Tags.Pure, self)
+                unit.deal_damage(self.get_stat("damage"), Tags.Arcane, self)
+
+                if unit.killed:
+                    self.spawn_clouds()
+                    yield
+
+class ManaShredder(Spell):
+    def on_init(self):
+        self.name = "Mana Shredder"
+        self.level = 3
+        self.tags = [Tags.Pure, Tags.Arcane, Tags.Conjuration]
+
+        self.max_charges = 8
+
+        self.minion_health = 10
+        self.shields = 2
+        self.minion_damage = 8
+
+        self.minion_duration = 14
+        self.minion_range = 6
+
+        self.must_target_empty = True
+
+    def get_description(self):
+        return "summon"
+
+    def cast_instant(self, x, y):
+        shredder = Unit()
+        shredder.name = "Mana Shredder"
+        shredder.tags = [Tags.Pure, Tags.Arcane]
+
+        shredder.sprite.char = 's'
+        shredder.sprite.color = Tags.Pure.color
+        shredder.asset = ["Cradle", "assets", "tilehazards", "frozen_mana"]
+
+        shredder.max_hp = self.get_stat("minion_health")
+        shredder.shields = self.get_stat("shields")
+
+        shredder.resists[Tags.Pure] = 100
+        shredder.resists[Tags.Arcane] = 75
+
+        shredder.stationary = True
+
+        shred = Shred()
+        shred.damage = self.get_stat("minion_damage")
+        shred.radius = self.get_stat("minion_range")
+        shred.range = self.get_stat("minion_range")
+        shred.duration = 5
+        shred.cloud_count = 10
+        shredder.spells.append(shred)
+
+        shredder.turns_to_death = self.get_stat("minion_duration")
+
+        self.summon(shredder, Point(x, y))
+
+class SoulFormation(Spell):
+    def on_init(self):
+        self.name = "Soul Formation"
+        self.level = 5
+        self.tags = [Tags.Pure, Tags.Dark, Tags.Conjuration]
+        
+        self.max_charges = 4
+        self.range = 12
+        self.radius = 3
+        self.minion_duration = 6
+
+        self.upgrades['radius'] = (1, 2)
+        self.upgrades['minion_duration'] = (4, 3)
+        self.upgrades['instability'] = (1, 5, "Instability", "Summon random variations of ghosts.")
+
+        self.ghost_types = [
+            (Ghost, 1),
+            (GhostMass, 0.12),
+            (GhostKing, 0.12),
+            (GhostFire, 0.3),
+            (Bloodghast, 0.3)
+        ]
+        # For the asset, draw a ghost rising from a mana cloud
+
+    def get_description(self):
+        return "Desc"
+    
+    def cast_instant(self, x, y):
+        for point in self.get_impacted_tiles(x, y):
+            tile = self.caster.level.tiles[point.x][point.y]
+            if tile.cloud is None:
+                continue
+
+            if not isinstance(tile.cloud, PureCloud):
+                continue
+
+            tile.cloud.kill()
+
+            ghost = Ghost()
+
+            if self.get_stat("instability"):
+                ghost = random.choices([g[0] for g in self.ghost_types], weights=[g[1] for g in self.ghost_types])[0]()
+
+            ghost.turns_to_death = 6
+            apply_minion_bonuses(self, ghost)
+            self.summon(ghost, point)
+
+class HelixBeam(Spell):
+    def on_init(self):
+        self.name = "Helix Beam"
+        self.level = 1
+        self.tags = [Tags.Pure, Tags.Sorcery]
+
+        self.range = 12
+        self.damage = 16
+
+        self.requires_los = True
+    
+    def get_description(self):
+        return "Desc"
+
+    def get_point_sets(self, x, y):
+        line = self.caster.level.get_points_in_line(Point(self.caster.x, self.caster.y), Point(x, y))
+        helix = []
+        dx = x - self.caster.x
+        dy = y - self.caster.y
+        for point in line:
+            distance = math.sqrt((point.x - self.caster.x)**2 + (point.y - self.caster.y)**2)
+            perp_distance = (math.sin(distance * 0.5) + 1) * 0.7
+            point_1 = get_perp_point_slope(point, dx, dy, perp_distance, 1)
+            point_2 = get_perp_point_slope(point, dx, dy, perp_distance, -1)
+            helix.append((point_1, point_2))
+        
+        return helix
+
+    def get_impacted_tiles(self, x, y):
+        return [point for point_set in self.get_point_sets(x, y) for point in point_set]
+
+    def cast(self, x, y):
+        point_sets = self.get_point_sets(x, y)
+        for point_set in point_sets:
+            if self.caster.level.is_point_in_bounds(point_set[0]):
+                self.caster.level.deal_damage(point_set[0].x, point_set[0].y, self.get_stat("damage"), Tags.Pure, self)
+            if self.caster.level.is_point_in_bounds(point_set[1]):
+                self.caster.level.deal_damage(point_set[1].x, point_set[1].y, self.get_stat("damage"), Tags.Pure, self)
+            
+            yield
+
 all_player_spell_constructors.append(HollowDomainSpell)
 all_player_spell_constructors.append(SoulCloakSpell)
 all_player_spell_constructors.append(EmptyPalmSpell)
+all_player_spell_constructors.append(WordOfEmptiness)
+all_player_spell_constructors.append(ManaShredder)
+all_player_spell_constructors.append(SoulFormation)
+all_player_spell_constructors.append(HelixBeam)

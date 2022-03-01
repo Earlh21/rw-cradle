@@ -119,6 +119,13 @@ def get_bouncing_line(
     
     return tiles
 
+def get_perp_point_slope(source, dx, dy, length, direction):
+    longer_len = max(abs(dy), abs(dx))
+    dx /= longer_len
+    dy /= longer_len
+
+    return Point(round(source.x + dy * length * direction), round(source.y - dx * length * direction))
+
 def get_perp_point(source, dest, length, direction):
     dx = dest.x - source.x
     dy = dest.y - source.y

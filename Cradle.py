@@ -15,8 +15,8 @@ APISpells.add_tag_keybind(Tags.Pure, "p")
 RiftWizard.tooltip_colors['purified'] = Tags.Pure.color
 RiftWizard.tooltip_colors['pure'] = Tags.Pure.color
 
-import mods.Cradle.TwinStars
+import mods.Cradle.spells.TwinStars
 #import mods.Cradle.Blackflame
 #import mods.Cradle.EndlessSword
-import mods.Cradle.HollowKing
+import mods.Cradle.spells.HollowKing
 import mods.Cradle.Upgrades

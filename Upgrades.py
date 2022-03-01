@@ -1,3 +1,4 @@
+from tkinter import E
 from Level import EventOnUnitAdded, are_hostile, Tags, Burst, Point, Spell, Unit
 from Level import EventOnDamaged, EventOnBuffApply, EventOnBuffRemove, EventOnSpellCast
 from CommonContent import Poison
@@ -301,6 +302,38 @@ class Mindlessness(Upgrade):
 
         evt.unit.resists[Tags.Pure] += 100
 
+class ManaPrism(Upgrade):
+    def on_init(self):
+        self.name = "Mana Prism"
+        self.level = 4
+        self.tags = [Tags.Pure]
+
+        self.damage = 6
+        self.radius = 2
+
+        self.global_triggers[EventOnDamaged] = self.on_damage
+    
+    def get_description(self):
+        return ("Deals 1 [fire], [lightning], [ice], [holy], [dark], and [arcane] damage when an enemy takes [pure] damage."
+                ).format(**self.fmt_dict())
+    
+    def on_damage(self, evt):
+        if evt.source is None:
+            return
+        if not hasattr(evt.source, "owner"):
+            return
+        if not evt.source.owner == self.owner:
+            return
+        if not evt.damage_type == Tags.Pure:
+            return
+        if evt.unit is None:
+            return
+        
+        for damage_type in [Tags.Fire, Tags.Lightning, Tags.Ice, Tags.Holy, Tags.Dark, Tags.Arcane]:
+            if not evt.unit.is_alive():
+                break
+            self.owner.level.deal_damage(evt.unit.x, evt.unit.y, self.get_stat("damage"), damage_type, self)
+
 skill_constructors.append(CleansingFlame)
 skill_constructors.append(SpiritCorruption)
 skill_constructors.append(FrozenMana)
@@ -308,3 +341,4 @@ skill_constructors.append(Nihilism)
 skill_constructors.append(Ozone)
 skill_constructors.append(PermeatingLight)
 skill_constructors.append(Mindlessness)
+skill_constructors.append(ManaPrism)
